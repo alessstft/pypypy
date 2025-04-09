@@ -1,0 +1,99 @@
+import tkinter as tk
+from tkinter import ttk
+import psutil
+import time
+
+class TaskManagerApp:
+    def __init__(self, root):
+        self.root = root
+        self.root.title("Диспетчер задач")
+        self.root.geometry("800x600")
+        self.root.configure(bg="#1e1e1e")
+
+        # Вкладки
+        self.notebook = ttk.Notebook(self.root)
+        self.notebook.pack(fill="both", expand=True)
+
+        style = ttk.Style()
+        style.theme_use('default')
+        style.configure('TNotebook.Tab', background='#2d2d30', foreground='white', padding=[10, 5])
+        style.map('TNotebook.Tab', background=[('selected', '#007acc')])
+
+        self.performance_tab = tk.Frame(self.notebook, bg="#1e1e1e")
+        self.notebook.add(self.performance_tab, text="Производительность")
+        self._init_performance_tab()
+
+        # История загрузки CPU
+        self.cpu_history = []
+        self.max_history_size = 60
+
+        # Запускаем обновление графика
+        self._update_cpu_data()
+
+    def _init_performance_tab(self):
+        self.canvas = tk.Canvas(self.performance_tab, bg="#1e1e1e", highlightthickness=0)
+        self.canvas.pack(fill="both", expand=True)
+        self.canvas.bind("<Configure>", lambda event: self._draw_cpu_graph())
+
+    def _update_cpu_data(self):
+        cpu_percent = psutil.cpu_percent(interval=None)
+        self.cpu_history.append(cpu_percent)
+
+        if len(self.cpu_history) > self.max_history_size:
+            self.cpu_history.pop(0)
+
+        self._draw_cpu_graph()
+        self.root.after(1000, self._update_cpu_data)
+
+    def _draw_cpu_graph(self):
+        self.canvas.delete("all")
+
+        width = self.canvas.winfo_width()
+        height = self.canvas.winfo_height()
+
+        padding = 40
+        graph_width = width - 2 * padding
+        graph_height = height - 2 * padding
+
+        grid_color = "#3c3c3c"
+        graph_color = "#00c3ff"
+        text_color = "#cccccc"
+
+        # Горизонтальные линии (0% - 100%)
+        for i in range(0, 101, 20):
+            y = height - padding - (i / 100 * graph_height)
+            self.canvas.create_line(padding, y, width - padding, y, fill=grid_color)
+            self.canvas.create_text(padding - 10, y, text=f"{i}%", fill=text_color, anchor="e", font=("Segoe UI", 10))
+
+        # Вертикальные линии времени
+        num_vertical_lines = 6
+        for i in range(num_vertical_lines + 1):
+            x = padding + (i / num_vertical_lines) * graph_width
+            self.canvas.create_line(x, padding, x, height - padding, fill=grid_color)
+
+        # Подписи времени снизу
+        for i in range(num_vertical_lines + 1):
+            x = padding + (i / num_vertical_lines) * graph_width
+            seconds_ago = (self.max_history_size - (i * self.max_history_size // num_vertical_lines))
+            self.canvas.create_text(x, height - padding + 15, text=f"-{seconds_ago}s", fill=text_color, anchor="n", font=("Segoe UI", 9))
+
+        # График CPU
+        if len(self.cpu_history) > 1:
+            points = []
+            visible_history = self.cpu_history[-self.max_history_size:]
+            for i, value in enumerate(visible_history):
+                x = padding + (i / (self.max_history_size - 1)) * graph_width
+                y = height - padding - (value / 100 * graph_height)
+                points.extend([x, y])
+            self.canvas.create_line(points, fill=graph_color, width=2, smooth=True)
+
+        # Надпись "ЦП" и текущее значение
+        if self.cpu_history:
+            current_cpu = self.cpu_history[-1]
+            self.canvas.create_text(padding, padding - 10, text=f"ЦП: {current_cpu:.1f}%", fill="#ffffff", anchor="w", font=("Segoe UI", 14, "bold"))
+
+
+if __name__ == "__main__":
+    root = tk.Tk()
+    app = TaskManagerApp(root)
+    root.mainloop()
